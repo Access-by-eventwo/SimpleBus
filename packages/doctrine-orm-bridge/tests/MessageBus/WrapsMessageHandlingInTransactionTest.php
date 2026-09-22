@@ -28,11 +28,11 @@ class WrapsMessageHandlingInTransactionTest extends TestCase
         $entityManagerName = 'default';
         $entityManager = $this->getMockBuilder(EntityManager::class)
             ->disableOriginalConstructor()
-            ->setMethods(['transactional'])
+            ->onlyMethods(['wrapInTransaction'])
             ->getMock();
         $entityManager
             ->expects($this->once())
-            ->method('transactional')
+            ->method('wrapInTransaction')
             ->will(
                 $this->returnCallback(
                     function (callable $transactionalCallback) {
@@ -81,11 +81,11 @@ class WrapsMessageHandlingInTransactionTest extends TestCase
         $entityManagerName = 'default';
         $alwaysFailingEntityManager = $this->getMockBuilder(EntityManager::class)
             ->disableOriginalConstructor()
-            ->setMethods(['transactional'])
+            ->onlyMethods(['wrapInTransaction'])
             ->getMock();
         $alwaysFailingEntityManager
             ->expects($this->once())
-            ->method('transactional')
+            ->method('wrapInTransaction')
             ->will(
                 $this->returnCallback(
                     function () use ($error) {

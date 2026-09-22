@@ -2,7 +2,11 @@
 
 namespace SimpleBus\DoctrineORMBridge\Tests\EventListener;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Event\PostFlushEventArgs;
 use Doctrine\ORM\Events;
+use Doctrine\ORM\UnitOfWork;
+use Doctrine\Persistence\Proxy;
 use PHPUnit\Framework\TestCase;
 use SimpleBus\DoctrineORMBridge\EventListener\CollectsEventsFromEntities;
 use SimpleBus\DoctrineORMBridge\Tests\EventListener\Fixtures\Entity\EventRecordingEntity;
@@ -123,6 +127,67 @@ class CollectsEventsFromEntitiesTest extends TestCase
         $this->assertEntityHasNoRecordedEvents($entity);
     }
 
+    public function testUsesProxyInitializationContract(): void
+    {
+        $event = new EntityChanged();
+        $readOnce = self::once();
+        $eraseOnce = self::once();
+        $twice = self::exactly(2);
+        $proxy = $this->createMock(RecordingProxy::class);
+        $initialization = $proxy->expects($twice)->method('__isInitialized');
+        $initialization->willReturnOnConsecutiveCalls(false, true);
+        $messages = $proxy->expects($readOnce)->method('recordedMessages');
+        $messages->willReturn([$event]);
+        $proxy->expects($eraseOnce)->method('eraseMessages');
+
+        $unitOfWork = $this->createStub(UnitOfWork::class);
+        $unitOfWork->method('getIdentityMap')->willReturn([[$proxy]]);
+        $entityManager = $this->createStub(EntityManagerInterface::class);
+        $entityManager->method('getUnitOfWork')->willReturn($unitOfWork);
+        $eventArgs = new PostFlushEventArgs($entityManager);
+
+        $this->eventSubscriber->postFlush($eventArgs);
+        $beforeInitialization = $this->eventSubscriber->recordedMessages();
+
+        self::assertSame([], $beforeInitialization);
+
+        $this->eventSubscriber->postFlush($eventArgs);
+        $afterInitialization = $this->eventSubscriber->recordedMessages();
+
+        self::assertSame([$event], $afterInitialization);
+    }
+
+    public function testSkipsUninitializedProxiesAndCollectsAfterInitialization(): void
+    {
+        $entity = new EventRecordingEntity();
+        $this->persistAndFlush($entity);
+        $this->eraseRecordedMessages();
+        $id = $entity->getId();
+        $entityManager = $this->getEntityManager();
+        $entityManager->clear();
+        $proxy = $entityManager->getReference(EventRecordingEntity::class, $id);
+
+        $entityManager->flush();
+
+        $initialized = $proxy->__isInitialized();
+        $events = $this->eventSubscriber->recordedMessages();
+
+        self::assertFalse($initialized);
+        self::assertSame([], $events);
+
+        $proxy->changeSomething();
+        $entityManager->flush();
+
+        $initialized = $proxy->__isInitialized();
+        $events = $this->eventSubscriber->recordedMessages();
+        $expected = new EntityChanged();
+
+        self::assertTrue($initialized);
+        self::assertContainsEquals($expected, $events);
+
+        $this->assertEntityHasNoRecordedEvents($proxy);
+    }
+
     /**
      * @return string[]
      */
@@ -154,4 +219,8 @@ class CollectsEventsFromEntitiesTest extends TestCase
         $this->getEntityManager()->remove($entity);
         $this->getEntityManager()->flush();
     }
+}
+
+interface RecordingProxy extends Proxy, ContainsRecordedMessages
+{
 }

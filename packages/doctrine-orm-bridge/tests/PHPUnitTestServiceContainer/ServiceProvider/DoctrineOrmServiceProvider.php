@@ -52,7 +52,7 @@ class DoctrineOrmServiceProvider implements ServiceProvider
         $serviceContainer['doctrine_orm.proxy_dir'] = sys_get_temp_dir();
 
         $serviceContainer['doctrine_orm.entity_manager'] = function (ServiceContainer $serviceContainer) {
-            return EntityManager::create(
+            return new EntityManager(
                 $serviceContainer['doctrine_dbal.connection'],
                 $serviceContainer['doctrine_orm.configuration'],
                 $serviceContainer['doctrine_dbal.event_manager']

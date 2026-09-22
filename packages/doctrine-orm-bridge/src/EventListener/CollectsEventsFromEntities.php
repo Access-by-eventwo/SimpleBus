@@ -5,7 +5,7 @@ namespace SimpleBus\DoctrineORMBridge\EventListener;
 use Doctrine\ORM\Event\PostFlushEventArgs;
 use Doctrine\ORM\Event\PreFlushEventArgs;
 use Doctrine\ORM\Events;
-use Doctrine\ORM\Proxy\Proxy;
+use Doctrine\Persistence\Proxy;
 use SimpleBus\Message\Recorder\ContainsRecordedMessages;
 
 class CollectsEventsFromEntities implements ContainsRecordedMessages
@@ -62,7 +62,7 @@ class CollectsEventsFromEntities implements ContainsRecordedMessages
         if ($entity instanceof ContainsRecordedMessages
             && (
                 !$entity instanceof Proxy
-                || ($entity instanceof Proxy && $entity->__isInitialized__)
+                || $entity->__isInitialized()
             )
         ) {
             foreach ($entity->recordedMessages() as $event) {
